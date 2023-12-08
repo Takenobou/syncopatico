@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
@@ -33,7 +34,12 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer ws.Close()
+	defer func(ws *websocket.Conn) {
+		err := ws.Close()
+		if err != nil {
+			log.Printf("Error closing WebSocket: %v", err)
+		}
+	}(ws)
 
 	// Register new client
 	mutex.Lock()
@@ -43,9 +49,9 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 	log.Printf("New user connected: %s", ws.RemoteAddr())
 
 	for {
-		var msg Message
-		// Read in a new message as JSON
-		err := ws.ReadJSON(&msg)
+		// Read in a new message as JSON into a map to capture raw JSON
+		var rawMsg map[string]interface{}
+		err := ws.ReadJSON(&rawMsg)
 		if err != nil {
 			log.Printf("Error from %s: %v", ws.RemoteAddr(), err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -57,9 +63,27 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			log.Printf("User disconnected: %s", ws.RemoteAddr())
 			break
 		}
-		log.Printf("Received message from %s: %+v", ws.RemoteAddr(), msg)
-		// Send the newly received message to the broadcast channel
-		broadcast <- msg
+
+		// Convert the raw message to a string for logging
+		rawJSON, _ := json.Marshal(rawMsg)
+		log.Printf("Raw JSON message from %s: %s", ws.RemoteAddr(), string(rawJSON))
+
+		// Unmarshal into the Message struct
+		var msg Message
+		if err := json.Unmarshal(rawJSON, &msg); err != nil {
+			log.Printf("Unmarshal error from %s: %v", ws.RemoteAddr(), err)
+			continue
+		}
+
+		// Check the DataType before broadcasting
+		if msg.DataType != "test" {
+			log.Printf("Received drawing message from %s: %+v", ws.RemoteAddr(), msg)
+			// Send the newly received message to the broadcast channel
+			broadcast <- msg
+		} else {
+			// Handle "test" messages differently or ignore them
+			log.Printf("Test message received from %s: %+v", ws.RemoteAddr(), msg)
+		}
 	}
 }
 
@@ -69,9 +93,13 @@ func handleMessages() {
 		mutex.Lock()
 		for client := range clients {
 			err := client.WriteJSON(msg)
+
 			if err != nil {
 				log.Printf("Error broadcasting to %s: %v", client.RemoteAddr(), err)
-				client.Close()
+				err := client.Close()
+				if err != nil {
+					return
+				}
 				delete(clients, client)
 			}
 		}
