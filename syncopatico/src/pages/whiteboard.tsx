@@ -12,6 +12,11 @@ type DrawingData = {
     // Add other properties as needed (like color, thickness)
 };
 
+type OuterLayer = {
+    dataType: string;
+    data: string;
+};
+
 const Whiteboard = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -37,11 +42,11 @@ const Whiteboard = () => {
             console.log("WebSocket message received:", event.data);
 
             try {
-                const msg = JSON.parse(event.data);
-                console.log("Message datatype", msg)
-                if (msg.DataType === 'drawing') {
-                    const drawingObject = JSON.parse(msg.Data);
-                    console.log("Message datatype (layer 2)", msg.DataType)
+                const obj: OuterLayer = JSON.parse(event.data);
+                console.log(obj.dataType);
+                if (obj.dataType === 'drawing') {
+                    const drawingObject = JSON.parse(obj.data);
+                    console.log("Message datatype (layer 2)", drawingObject.DataType)
 
                     setDrawingData(prevDrawingData => {
                         console.log('Updating drawing data with:', drawingObject);
