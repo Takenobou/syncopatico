@@ -37,15 +37,16 @@ const Whiteboard = () => {
             console.log("WebSocket message received:", event.data);
 
             try {
-                const msg = JSON.parse(event.data); // First parse
-                console.log("Parsed message:", msg);
-
+                const msg = JSON.parse(event.data);
+                console.log("Message datatype", msg)
                 if (msg.DataType === 'drawing') {
-                    const drawingObject = JSON.parse(msg.Data); // Second parse
-                    console.log("Drawing object received:", drawingObject);
+                    const drawingObject = JSON.parse(msg.Data);
+                    console.log("Message datatype (layer 2)", msg.DataType)
 
-                    // Update the drawingData state with the new drawing object
-                    setDrawingData(prevDrawingData => [...prevDrawingData, drawingObject]);
+                    setDrawingData(prevDrawingData => {
+                        console.log('Updating drawing data with:', drawingObject);
+                        return [...prevDrawingData, drawingObject];
+                    });
                 }
             } catch (error) {
                 console.error("Error processing the message:", error);
@@ -103,48 +104,19 @@ const Whiteboard = () => {
     const stopDrawing = () => {
         setIsDrawing(false);
 
-        // If currentDrawing is null, we do not proceed.
         if (!currentDrawing) return;
 
-        // Since we have a currentDrawing, we proceed to update the drawingData state.
         setDrawingData((prevDrawingData) => {
-            const updatedDrawingData = prevDrawingData.map((data, index) => {
-                // If we're at the last item in the array, we return the currentDrawing.
-                // We use a type guard to ensure that we are not spreading null values.
+            return prevDrawingData.map((data, index) => {
                 if (index === prevDrawingData.length - 1 && currentDrawing) {
-                    return { ...data, ...currentDrawing };
+                    return {...data, ...currentDrawing};
                 }
                 return data;
             });
-
-            // Send the last drawing to the WebSocket server
-            const lastDrawing = updatedDrawingData[updatedDrawingData.length - 1];
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                console.log('stopDrawing - sending drawing data:', lastDrawing);
-                const message = {
-                    DataType: 'drawing',
-                    Data: JSON.stringify(currentDrawing)
-                };
-                ws.send(JSON.stringify(message));
-            }
-
-            // Return the updated drawing data array
-            return updatedDrawingData;
         });
 
-        // Reset the current drawing to null.
         setCurrentDrawing(null);
     };
-
-    useEffect(() => {
-        if (!isDrawing && drawingData.length > 0) {
-            const currentDrawing = drawingData[drawingData.length - 1];
-            if (currentDrawing.type && currentDrawing.startX !== undefined && currentDrawing.endX !== undefined) {
-                console.log("Final drawing data to send:", currentDrawing);
-                // Consider sending the data here if needed, or rely on stopDrawing.
-            }
-        }
-    }, [isDrawing, drawingData]);
 
     // Function to render the drawing on the canvas
     const renderCanvas = useCallback(() => {
@@ -159,13 +131,13 @@ const Whiteboard = () => {
 
         // Draw all lines from the drawingData state
         drawingData.forEach((item) => {
+            console.log("Drawing tool received:", item)
             context.beginPath();
             context.moveTo(item.startX, item.startY);
             context.lineTo(item.endX, item.endY);
             context.stroke();
         });
     }, [drawingData]);
-
 
     // Effect to render the canvas whenever the drawing data changes
     useEffect(() => {
@@ -177,9 +149,27 @@ const Whiteboard = () => {
         console.log('drawingData updated:', drawingData);
     }, [drawingData]);
 
+    useEffect(() => {
+        if (!isDrawing && drawingData.length > 0) {
+            const lastDrawing = drawingData[drawingData.length - 1];
+            if (lastDrawing.type && lastDrawing.startX !== undefined && lastDrawing.endX !== undefined) {
+                console.log("Final drawing data to send:", lastDrawing);
+
+                // Send the last drawing to the WebSocket server
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    console.log('useEffect - sending drawing data:', lastDrawing);
+                    const message = {
+                        DataType: 'drawing',
+                        Data: JSON.stringify(lastDrawing)
+                    };
+                    ws.send(JSON.stringify(message));
+                }
+            }
+        }
+    }, [isDrawing, drawingData, ws]);
+
     return (
         <div>
-            <Toolbar setCurrentTool={setCurrentTool} />
             <canvas
                 ref={canvasRef}
                 width={800} // Set appropriate size
@@ -189,6 +179,7 @@ const Whiteboard = () => {
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
             />
+            <Toolbar setCurrentTool={setCurrentTool} />
         </div>
     );
 };
