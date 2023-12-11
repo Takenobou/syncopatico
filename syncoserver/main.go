@@ -17,8 +17,10 @@ var upgrader = websocket.Upgrader{
 }
 
 var (
-	clients = make(map[*websocket.Conn]bool) // Connected clients
-	mutex   sync.Mutex                       // Mutex to protect access to clients map
+	clients      = make(map[*websocket.Conn]bool) // Connected clients
+	mutex        sync.Mutex                       // Mutex to protect access to clients map
+	drawingData  []DrawingData                    // Shared drawing data
+	drawingMutex sync.Mutex                       // Mutex to protect access to drawingData
 )
 var broadcast = make(chan Message) // Broadcast channel
 
@@ -26,6 +28,19 @@ var broadcast = make(chan Message) // Broadcast channel
 type Message struct {
 	DataType string `json:"dataType"`
 	Data     string `json:"data"`
+}
+
+type DrawingData struct {
+	Type   string `json:"type"`
+	StartX int    `json:"startX"`
+	StartY int    `json:"startY"`
+	EndX   int    `json:"endX"`
+	EndY   int    `json:"endY"`
+	Text   string `json:"text,omitempty"`
+	// Additional properties for rectangle and circle
+	Radius int `json:"radius,omitempty"`
+	Width  int `json:"width,omitempty"`
+	Height int `json:"height,omitempty"`
 }
 
 func handleConnections(w http.ResponseWriter, r *http.Request) {
@@ -41,12 +56,26 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 		}
 	}(ws)
 
-	// Register new client
 	mutex.Lock()
 	clients[ws] = true
 	mutex.Unlock()
 
 	log.Printf("New user connected: %s", ws.RemoteAddr())
+
+	// Send initial drawing data to the new client
+	drawingMutex.Lock()
+	for _, drawing := range drawingData {
+		message := Message{
+			DataType: "drawing",
+			Data:     toJSONString(drawing),
+		}
+		err := ws.WriteJSON(message)
+		if err != nil {
+			log.Printf("Error sending initial drawing data to %s: %v", ws.RemoteAddr(), err)
+			break
+		}
+	}
+	drawingMutex.Unlock()
 
 	for {
 		// Read in a new message as JSON into a map to capture raw JSON
@@ -92,19 +121,44 @@ func handleMessages() {
 		msg := <-broadcast
 		mutex.Lock()
 		for client := range clients {
-			err := client.WriteJSON(msg)
-
-			if err != nil {
-				log.Printf("Error broadcasting to %s: %v", client.RemoteAddr(), err)
-				err := client.Close()
+			go func(c *websocket.Conn) {
+				err := c.WriteJSON(msg)
 				if err != nil {
-					return
+					log.Printf("Error broadcasting to %s: %v", c.RemoteAddr(), err)
+					err := c.Close()
+					if err != nil {
+						return
+					}
+					delete(clients, c)
 				}
-				delete(clients, client)
-			}
+			}(client)
 		}
 		mutex.Unlock()
+
+		// Save the drawing to the drawingData array
+		if msg.DataType == "drawing" {
+			drawingMutex.Lock()
+			var drawing DrawingData
+			if err := json.Unmarshal([]byte(msg.Data), &drawing); err == nil {
+				drawingData = append(drawingData, drawing)
+			}
+			drawingMutex.Unlock()
+		}
+
+		// Log every 10 received messages
+		if len(broadcast)%10 == 0 {
+			log.Printf("Broadcasted %d messages", len(broadcast))
+		}
 	}
+}
+
+func toJSONString(data interface{}) string {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("Error marshalling to JSON: %v", err)
+		return ""
+	}
+	return string(jsonData)
 }
 
 func main() {

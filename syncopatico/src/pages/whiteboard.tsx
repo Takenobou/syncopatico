@@ -85,8 +85,9 @@ const Whiteboard = () => {
             endY: offsetY,
         };
         setCurrentDrawing(newDrawing); // Set the current drawing
-        setDrawingData([...drawingData, newDrawing]);
+        setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
     };
+
 
     const draw = (e: React.MouseEvent) => {
         if (!isDrawing || !currentDrawing) return;
@@ -98,30 +99,18 @@ const Whiteboard = () => {
             endY: offsetY,
         };
         setCurrentDrawing(updatedDrawing); // Update the current drawing
-
-        console.log('draw - updatedData:', updatedDrawing);
-        // Update the last item in drawingData array with the updated drawing
-        setDrawingData(drawingData.map((data, index) =>
-            index === drawingData.length - 1 ? updatedDrawing : data
-        ));
     };
+
 
     const stopDrawing = () => {
         setIsDrawing(false);
 
         if (!currentDrawing) return;
 
-        setDrawingData((prevDrawingData) => {
-            return prevDrawingData.map((data, index) => {
-                if (index === prevDrawingData.length - 1 && currentDrawing) {
-                    return {...data, ...currentDrawing};
-                }
-                return data;
-            });
-        });
-
+        setDrawingData(prevDrawingData => [...prevDrawingData, currentDrawing]);
         setCurrentDrawing(null);
     };
+
 
     // Function to render the drawing on the canvas
     const renderCanvas = useCallback(() => {
@@ -134,12 +123,21 @@ const Whiteboard = () => {
 
         context.clearRect(0, 0, context.canvas.width, context.canvas.height);
 
-        // Draw all lines from the drawingData state
+        // Draw all shapes from the drawingData state
         drawingData.forEach((item) => {
-            console.log("Drawing tool received:", item)
             context.beginPath();
-            context.moveTo(item.startX, item.startY);
-            context.lineTo(item.endX, item.endY);
+            if (item.type === 'line') {
+                context.moveTo(item.startX, item.startY);
+                context.lineTo(item.endX, item.endY);
+            } else if (item.type === 'circle') {
+                const radius = Math.sqrt(Math.pow(item.endX - item.startX, 2) + Math.pow(item.endY - item.startY, 2));
+                context.arc(item.startX, item.startY, radius, 0, 2 * Math.PI);
+            } else if (item.type === 'rectangle') {
+                context.rect(item.startX, item.startY, item.endX - item.startX, item.endY - item.startY);
+            } else if (item.type === 'text') {
+                // Handle text drawing if needed
+            }
+
             context.stroke();
         });
     }, [drawingData]);
