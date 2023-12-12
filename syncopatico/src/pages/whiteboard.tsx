@@ -46,7 +46,6 @@ const Whiteboard = () => {
                 console.log(obj.dataType);
                 if (obj.dataType === 'drawing') {
                     const drawingObject = JSON.parse(obj.data);
-                    console.log("Message datatype (layer 2)", drawingObject.DataType)
 
                     setDrawingData(prevDrawingData => {
                         console.log('Updating drawing data with:', drawingObject);
@@ -151,6 +150,7 @@ const Whiteboard = () => {
     }, [drawingData]);
 
     useEffect(() => {
+        // Check if drawing has just stopped and there is at least one drawing in the array
         if (!isDrawing && drawingData.length > 0) {
             const lastDrawing = drawingData[drawingData.length - 1];
             if (lastDrawing.type && lastDrawing.startX !== undefined && lastDrawing.endX !== undefined) {
@@ -158,7 +158,7 @@ const Whiteboard = () => {
 
                 // Send the last drawing to the WebSocket server
                 if (ws && ws.readyState === WebSocket.OPEN) {
-                    console.log('useEffect - sending drawing data:', lastDrawing);
+                    console.log('Sending drawing data:', lastDrawing);
                     const message = {
                         DataType: 'drawing',
                         Data: JSON.stringify(lastDrawing)
@@ -167,7 +167,7 @@ const Whiteboard = () => {
                 }
             }
         }
-    }, [isDrawing, drawingData, ws]);
+    }, [isDrawing]);
 
     return (
         <div>
