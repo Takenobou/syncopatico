@@ -88,7 +88,6 @@ const Whiteboard = () => {
         setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
     };
 
-
     const draw = (e: React.MouseEvent) => {
         if (!isDrawing || !currentDrawing) return;
         const { offsetX, offsetY } = e.nativeEvent;
@@ -134,10 +133,9 @@ const Whiteboard = () => {
                 context.arc(item.startX, item.startY, radius, 0, 2 * Math.PI);
             } else if (item.type === 'rectangle') {
                 context.rect(item.startX, item.startY, item.endX - item.startX, item.endY - item.startY);
-            } else if (item.type === 'text') {
-                // Handle text drawing if needed
-            }
-
+            }// } else if (item.type === 'text') {
+            //     // Handle text drawing if needed
+            // }
             context.stroke();
         });
     }, [drawingData]);

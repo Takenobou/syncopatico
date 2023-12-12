@@ -11,7 +11,7 @@ const App: React.FC = () => {
             <div className="">
                 <Routes>
                     <Route path="/" element={<Landing />} />
-                    <Route path="/whiteboard" element={<Whiteboard />} />
+                    <Route path="/whiteboard/:code" element={<Whiteboard />} />
                 </Routes>
             </div>
         </BrowserRouter>

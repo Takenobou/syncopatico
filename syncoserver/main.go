@@ -21,6 +21,7 @@ var (
 	mutex        sync.Mutex                       // Mutex to protect access to clients map
 	drawingData  []DrawingData                    // Shared drawing data
 	drawingMutex sync.Mutex                       // Mutex to protect access to drawingData
+	writeMutex   sync.Mutex                       // Mutex to protect websocket write
 )
 var broadcast = make(chan Message) // Broadcast channel
 
@@ -69,7 +70,9 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			DataType: "drawing",
 			Data:     toJSONString(drawing),
 		}
+		writeMutex.Lock()
 		err := ws.WriteJSON(message)
+		writeMutex.Unlock()
 		if err != nil {
 			log.Printf("Error sending initial drawing data to %s: %v", ws.RemoteAddr(), err)
 			break
@@ -122,7 +125,9 @@ func handleMessages() {
 		mutex.Lock()
 		for client := range clients {
 			go func(c *websocket.Conn) {
+				writeMutex.Lock()
 				err := c.WriteJSON(msg)
+				writeMutex.Unlock()
 				if err != nil {
 					log.Printf("Error broadcasting to %s: %v", c.RemoteAddr(), err)
 					err := c.Close()

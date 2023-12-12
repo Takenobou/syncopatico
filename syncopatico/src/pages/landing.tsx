@@ -1,13 +1,65 @@
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import { useNavigate } from 'react-router-dom';
 
 const Landing: React.FC = () => {
     const navigate = useNavigate();
     const [showJoinInput, setShowJoinInput] = useState(false);
     const [joinCode, setJoinCode] = useState('');
+    const generateRandomCode = (): number => {
+        return Math.floor(1000 + Math.random() * 9000);
+    };
+    const isValidCode = (code: string): boolean => {
+        // Add your validation logic here (if needed)
+        return /^[0-9]{4}$/.test(code);
+    };
+
+    useEffect(() => {
+        // Establish a WebSocket connection when the component mounts
+        const socket = new WebSocket('ws://localhost:8080/ws');
+
+        // Handle incoming messages from the server
+        socket.addEventListener('message', (event) => {
+            const message = JSON.parse(event.data);
+            console.log('Received message from server:', message);
+            // Handle the message as needed
+        });
+
+        // Handle WebSocket close event
+        socket.addEventListener('close', (event) => {
+            if (event.wasClean) {
+                console.log(`Connection closed cleanly, code=${event.code}, reason=${event.reason}`);
+            } else {
+                console.error('Connection died');
+            }
+        });
+
+        // Handle errors
+        socket.addEventListener('error', (error) => {
+            console.error('WebSocket Error:', error);
+        });
+
+        // Clean up the WebSocket connection when the component unmounts
+        return () => {
+            socket.close();
+        };
+    }, []); // Empty dependency array ensures that this effect runs only once
+
 
     const createNewWhiteboard = () => {
-        navigate('/whiteboard');
+        const code = generateRandomCode();
+        navigate(`/whiteboard/${code}`);
+    };
+
+    const handleJoinSubmit = () => {
+        console.log('Handle Join Submit called');
+
+        if (isValidCode(joinCode)) {
+            console.log('Is Valid Code:', true);
+            console.log('Navigating to whiteboard:', `/whiteboard/${joinCode}`);
+            navigate(`/whiteboard/${joinCode}`);
+        } else {
+            console.log('Invalid code. Please try again.');
+        }
     };
 
     const handleJoinClick = () => {
@@ -18,15 +70,40 @@ const Landing: React.FC = () => {
         setShowJoinInput(false);
         setJoinCode('');
     };
+    // const createNewWhiteboard = () => {
+    //     const code = generateRandomCode();
+    //     navigate(`/whiteboard/${code}`);
+    // };
+    //
+    // const handleJoinSubmit = () => {
+    //     console.log('Handle Join Submit called');
+    //
+    //     if (isValidCode(joinCode)) {
+    //         console.log('Is Valid Code:', true);
+    //         console.log('Navigating to whiteboard:', `/whiteboard/${joinCode}`);
+    //         navigate(`/whiteboard/${joinCode}`);
+    //     } else {
+    //         console.log('Invalid code. Please try again.');
+    //     }
+    // };
+    //
+    //
+    //
+    // const handleJoinClick = () => {
+    //     setShowJoinInput(true);
+    // };
+    //
+    // const handleGoBack = () => {
+    //     setShowJoinInput(false);
+    //     setJoinCode('');
+    // };
 
-    const handleJoinSubmit = () => {
-        navigate(`/whiteboard/${joinCode}`);
-    };
+
 
     return (
         <div className="flex justify-center items-center h-screen bg-gray-100">
             <div className="text-center p-8 bg-white shadow-lg rounded-xl transition-all w-1/4">
-            <h1 className="text-5xl font-extrabold mb-10 text-gray-900">Syncopatico</h1>
+                <h1 className="text-5xl font-extrabold mb-10 text-gray-900">Syncopatico</h1>
                 {!showJoinInput ? (
                     <div className="space-y-4">
                         <button
