@@ -9,6 +9,8 @@ type DrawingData = {
     endX: number;
     endY: number;
     text?: string;
+    fontSize?: string;
+    fontFamily?: string;
     // Add other properties as needed (like color, thickness)
 };
 
@@ -24,6 +26,7 @@ const Whiteboard = () => {
     const [currentTool, setCurrentTool] = useState<'line' | 'circle' | 'rectangle' | 'text'>('line');
     const [ws, setWs] = useState<WebSocket | null>(null);
     const [currentDrawing, setCurrentDrawing] = useState<DrawingData | null>(null);
+    const [textInput, setTextInput] = useState(''); // State for text input
 
     useEffect(() => {
         const newWebSocket = new WebSocket('ws://localhost:8080/ws');
@@ -73,18 +76,37 @@ const Whiteboard = () => {
 
     // Function to start drawing
     const startDrawing = (e: React.MouseEvent) => {
-        const { offsetX, offsetY } = e.nativeEvent;
-        setIsDrawing(true);
-        const newDrawing: DrawingData = {
-            type: currentTool,
-            startX: offsetX,
-            startY: offsetY,
-            // Initialize endX and endY with the same starting point
-            endX: offsetX,
-            endY: offsetY,
-        };
-        setCurrentDrawing(newDrawing); // Set the current drawing
-        setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
+        if (currentTool === 'text') {
+            const { offsetX, offsetY } = e.nativeEvent
+            // Logic for starting text drawing
+            const newDrawing: DrawingData = {
+                type: 'text',
+                startX: offsetX,
+                startY: offsetY,
+                endX: offsetX, // For text, endX and endY may not be used
+                endY: offsetY,
+                text: textInput,
+                fontSize: '16px', // Default font size, can be made dynamic
+                fontFamily: 'Arial', // Default font family, can be made dynamic
+            };
+            setCurrentDrawing(newDrawing);
+            setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
+            setIsDrawing(false); // To stop drawing after text input
+        } else {
+            const { offsetX, offsetY } = e.nativeEvent;
+            setIsDrawing(true);
+            const newDrawing: DrawingData = {
+                type: currentTool,
+                startX: offsetX,
+                startY: offsetY,
+                // Initialize endX and endY with the same starting point
+                endX: offsetX,
+                endY: offsetY,
+            };
+            setCurrentDrawing(newDrawing); // Set the current drawing
+            setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
+        }
+
     };
 
     const draw = (e: React.MouseEvent) => {
@@ -105,8 +127,28 @@ const Whiteboard = () => {
 
         if (!currentDrawing) return;
 
+        if (currentTool === 'text' && textInput.trim() !== '') {
+            const textDrawing = {
+                ...currentDrawing,
+                text: textInput
+            };
+            sendDrawingData(textDrawing);
+            setTextInput(''); // Clear the text input after sending
+        }
+
         setDrawingData(prevDrawingData => [...prevDrawingData, currentDrawing]);
         setCurrentDrawing(null);
+    };
+
+    // Extracted function to send drawing data
+    const sendDrawingData = (drawing) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            const message = {
+                DataType: 'drawing',
+                Data: JSON.stringify(drawing)
+            };
+            ws.send(JSON.stringify(message));
+        }
     };
 
 
@@ -132,12 +174,27 @@ const Whiteboard = () => {
                 context.arc(item.startX, item.startY, radius, 0, 2 * Math.PI);
             } else if (item.type === 'rectangle') {
                 context.rect(item.startX, item.startY, item.endX - item.startX, item.endY - item.startY);
-            }// } else if (item.type === 'text') {
-            //     // Handle text drawing if needed
-            // }
+            } else if (item.type === 'text' && item.text) {
+                context.font = `${item.fontSize} ${item.fontFamily}`;
+                context.fillText(item.text, item.startX, item.startY);
+            }
             context.stroke();
         });
     }, [drawingData]);
+
+    const renderTextInput = () => {
+        if (currentTool === 'text') {
+            return (
+                <input
+                    type="text"
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    placeholder="Enter text"
+                />
+            );
+        }
+        return null;
+    };
 
     // Effect to render the canvas whenever the drawing data changes
     useEffect(() => {
@@ -171,6 +228,7 @@ const Whiteboard = () => {
 
     return (
         <div>
+            {renderTextInput()}
             <canvas
                 ref={canvasRef}
                 width={800} // Set appropriate size
