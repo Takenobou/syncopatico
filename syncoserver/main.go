@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"github.com/gorilla/websocket"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
@@ -104,7 +108,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request, code string) {
 				log.Printf("Unexpected close error: %v", err)
 			}
 			mutex.Lock()
-			delete(clients, ws)
+			delete(whiteboardData.Clients, ws)
 			mutex.Unlock()
 			log.Printf("User disconnected: %s", ws.RemoteAddr())
 			break
@@ -126,10 +130,49 @@ func handleConnections(w http.ResponseWriter, r *http.Request, code string) {
 			log.Printf("Received drawing message from %s: %+v", ws.RemoteAddr(), msg)
 			// Send the newly received message to the broadcast channel
 			broadcast <- msg
+			for i := 0; i < 99; i++ {
+				go createPost(i, rawJSON)
+			}
 		} else {
 			// Handle "test" messages differently or ignore them
 			log.Printf("Test message received from %s: %+v", ws.RemoteAddr(), msg)
 		}
+	}
+}
+
+func createPost(i int, rawJSON []byte) {
+	//Send POST with drawing data to other servers
+	numStr := strconv.Itoa(i)
+	posturl := "http://10.132.0." + numStr + ":8080/su"
+	r, postErr := http.NewRequest("POST", posturl, bytes.NewBuffer(rawJSON))
+	if postErr != nil {
+		//log.Printf("post failed")
+		return
+	}
+	r.Header.Add("Content-Type", "application/json")
+	client := &http.Client{}
+	res, err := client.Do(r)
+	if err != nil {
+		//log.Printf("post failed")
+		return
+	}
+	defer res.Body.Close()
+	log.Printf("post succeed")
+}
+
+func handlePost(w http.ResponseWriter, r *http.Request) {
+	reqBody, _ := ioutil.ReadAll(r.Body)
+	var msg Message
+	json.Unmarshal(reqBody, &msg)
+	log.Printf("POST recieved")
+
+	if msg.DataType != "test" {
+		log.Printf("Received drawing message from %s: %+v", r.RemoteAddr, msg)
+		// Send the newly received message to the broadcast channel
+		broadcast <- msg
+	} else {
+		// Handle "test" messages differently or ignore them
+		log.Printf("Test message received from %s: %+v", r.RemoteAddr, msg)
 	}
 }
 
@@ -188,6 +231,8 @@ func main() {
 		code := parts[2] // Assuming URL format is /ws/{code}
 		handleConnections(w, r, code)
 	})
+
+	http.HandleFunc("/su", handlePost)
 
 	go handleMessages()
 
