@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -19,16 +20,23 @@ var upgrader = websocket.Upgrader{
 var (
 	clients      = make(map[*websocket.Conn]bool) // Connected clients
 	mutex        sync.Mutex                       // Mutex to protect access to clients map
-	drawingData  []DrawingData                    // Shared drawing data
 	drawingMutex sync.Mutex                       // Mutex to protect access to drawingData
-	writeMutex   sync.Mutex                       // Mutex to protect websocket write
 )
 var broadcast = make(chan Message) // Broadcast channel
+
+var whiteboards = make(map[string]*WhiteboardData)
+
+type WhiteboardData struct {
+	Clients  map[*websocket.Conn]bool
+	Drawings []DrawingData
+	Mutex    sync.Mutex
+}
 
 // Message object
 type Message struct {
 	DataType string `json:"dataType"`
 	Data     string `json:"data"`
+	Code     string `json:"code"`
 }
 
 type DrawingData struct {
@@ -44,7 +52,7 @@ type DrawingData struct {
 	Height int `json:"height,omitempty"`
 }
 
-func handleConnections(w http.ResponseWriter, r *http.Request) {
+func handleConnections(w http.ResponseWriter, r *http.Request, code string) {
 	// Upgrade initial GET request to a WebSocket
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -56,26 +64,32 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Error closing WebSocket: %v", err)
 		}
 	}(ws)
-
-	mutex.Lock()
-	clients[ws] = true
-	mutex.Unlock()
+	// Retrieve or initialize the whiteboard session
+	whiteboardData, ok := whiteboards[code]
+	if !ok {
+		whiteboardData = &WhiteboardData{
+			Clients:  make(map[*websocket.Conn]bool),
+			Drawings: []DrawingData{},
+		}
+		whiteboards[code] = whiteboardData
+	}
+	whiteboardData.Clients[ws] = true
 
 	log.Printf("New user connected: %s", ws.RemoteAddr())
 
 	// Send initial drawing data to the new client
 	drawingMutex.Lock()
-	for _, drawing := range drawingData {
+	// Send existing drawing data to the new client for this whiteboard session
+	for _, drawing := range whiteboardData.Drawings {
 		message := Message{
 			DataType: "drawing",
 			Data:     toJSONString(drawing),
+			Code:     code,
 		}
-		writeMutex.Lock()
 		err := ws.WriteJSON(message)
-		writeMutex.Unlock()
 		if err != nil {
-			log.Printf("Error sending initial drawing data to %s: %v", ws.RemoteAddr(), err)
-			break
+			log.Printf("Error sending drawing data: %v", err)
+			return // Handle the error appropriately
 		}
 	}
 	drawingMutex.Unlock()
@@ -120,34 +134,28 @@ func handleConnections(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMessages() {
-	for {
-		msg := <-broadcast
-		mutex.Lock()
-		for client := range clients {
-			go func(c *websocket.Conn) {
-				writeMutex.Lock()
-				err := c.WriteJSON(msg)
-				writeMutex.Unlock()
-				if err != nil {
-					log.Printf("Error broadcasting to %s: %v", c.RemoteAddr(), err)
-					err := c.Close()
-					if err != nil {
-						return
-					}
-					delete(clients, c)
-				}
-			}(client)
+	for msg := range broadcast {
+		wbData, ok := whiteboards[msg.Code]
+		if !ok {
+			continue // Skip if no such whiteboard
 		}
-		mutex.Unlock()
+		wbData.Mutex.Lock()
+		for client := range wbData.Clients {
+			if client != nil {
+				err := client.WriteJSON(msg)
+				if err != nil {
+					return
+				} // You may want to handle errors here
+			}
+		}
+		wbData.Mutex.Unlock()
 
 		// Save the drawing to the drawingData array
 		if msg.DataType == "drawing" {
-			drawingMutex.Lock()
 			var drawing DrawingData
 			if err := json.Unmarshal([]byte(msg.Data), &drawing); err == nil {
-				drawingData = append(drawingData, drawing)
+				wbData.Drawings = append(wbData.Drawings, drawing)
 			}
-			drawingMutex.Unlock()
 		}
 
 		// Log every 10 received messages
@@ -171,8 +179,16 @@ func main() {
 	fs := http.FileServer(http.Dir("./static"))
 	http.Handle("/", fs)
 
-	// Set up route for WebSocket connections
-	http.HandleFunc("/ws", handleConnections)
+	http.HandleFunc("/ws/", func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) < 3 {
+			http.Error(w, "Invalid URL", http.StatusBadRequest)
+			return
+		}
+		code := parts[2] // Assuming URL format is /ws/{code}
+		handleConnections(w, r, code)
+	})
+
 	go handleMessages()
 
 	// Start the server

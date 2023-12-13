@@ -54,9 +54,7 @@ const Landing: React.FC = () => {
         console.log('Handle Join Submit called');
 
         if (isValidCode(joinCode)) {
-            console.log('Is Valid Code:', true);
-            console.log('Navigating to whiteboard:', `/whiteboard/${joinCode}`);
-            navigate(`/whiteboard/${joinCode}`);
+            navigate(`/whiteboard/${joinCode}`); // This should navigate to the URL with the correct code
         } else {
             console.log('Invalid code. Please try again.');
         }

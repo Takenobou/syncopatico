@@ -1,4 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
+import { useParams } from 'react-router-dom';
 import Toolbar from "../components/Toolbar.tsx";
 
 // Define a type for the drawing data
@@ -27,51 +28,59 @@ const Whiteboard = () => {
     const [ws, setWs] = useState<WebSocket | null>(null);
     const [currentDrawing, setCurrentDrawing] = useState<DrawingData | null>(null);
     const [textInput, setTextInput] = useState(''); // State for text input
-
+    const { code } = useParams();
     useEffect(() => {
-        const newWebSocket = new WebSocket('ws://localhost:8080/ws');
+        // Initialize WebSocket connection
+        const initializeWebSocket = () => {
+            const ws = new WebSocket(`ws://localhost:8080/ws/${code}`);
+            ws.onopen = () => console.log("WebSocket opened");
+            ws.onclose = () => console.log("WebSocket closed");
+            ws.onerror = (error) => console.error("WebSocket error:", error);
+            ws.onmessage = (event) => {
+                console.log("WebSocket message received:", event.data);
 
-        newWebSocket.onopen = () => {
-            console.log("Connected to WebSocket server");
-            // Send a test message upon connection
-            newWebSocket.send(JSON.stringify({ DataType: "test", Data: "Connection established" }));
-        };
+                try {
+                    const obj: OuterLayer = JSON.parse(event.data);
+                    console.log(obj.dataType);
+                    if (obj.dataType === 'drawing') {
+                        const drawingObject = JSON.parse(obj.data);
 
-        newWebSocket.onerror = (error) => {
-            console.error("WebSocket error:", error);
-        };
-
-        newWebSocket.onmessage = (event) => {
-            console.log("WebSocket message received:", event.data);
-
-            try {
-                const obj: OuterLayer = JSON.parse(event.data);
-                console.log(obj.dataType);
-                if (obj.dataType === 'drawing') {
-                    const drawingObject = JSON.parse(obj.data);
-
-                    setDrawingData(prevDrawingData => {
-                        console.log('Updating drawing data with:', drawingObject);
-                        return [...prevDrawingData, drawingObject];
-                    });
+                        setDrawingData(prevDrawingData => {
+                            console.log('Updating drawing data with:', drawingObject);
+                            return [...prevDrawingData, drawingObject];
+                        });
+                    }
+                } catch (error) {
+                    console.error("Error processing the message:", error);
                 }
-            } catch (error) {
-                console.error("Error processing the message:", error);
-            }
+            };
+            setWs(ws);
         };
 
-        newWebSocket.onclose = (event) => {
-            console.log("WebSocket closed:", event.reason);
-        };
-
-        setWs(newWebSocket);
+        initializeWebSocket();
 
         return () => {
-            if (newWebSocket.readyState === WebSocket.OPEN) {
-                newWebSocket.close();
-            }
+            // Clean up the WebSocket connection
+            ws?.close();
+
         };
-    }, []);
+
+
+    }, [code]);
+
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            ws?.close();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [ws]);
+
+
 
 
     // Function to start drawing
@@ -122,6 +131,7 @@ const Whiteboard = () => {
     };
 
 
+    // Use sendDrawingData function where appropriate, e.g., in stopDrawing function
     const stopDrawing = () => {
         setIsDrawing(false);
 
@@ -134,18 +144,21 @@ const Whiteboard = () => {
             };
             sendDrawingData(textDrawing);
             setTextInput(''); // Clear the text input after sending
+        } else if (currentDrawing) {
+            sendDrawingData(currentDrawing); // Send drawing data for other tools
         }
 
         setDrawingData(prevDrawingData => [...prevDrawingData, currentDrawing]);
         setCurrentDrawing(null);
     };
 
-    // Extracted function to send drawing data
-    const sendDrawingData = (drawing) => {
+    // sendDrawingData function
+    const sendDrawingData = (drawing: DrawingData) => {
         if (ws && ws.readyState === WebSocket.OPEN) {
             const message = {
                 DataType: 'drawing',
-                Data: JSON.stringify(drawing)
+                Data: JSON.stringify(drawing),
+                Code: code
             };
             ws.send(JSON.stringify(message));
         }
@@ -224,7 +237,7 @@ const Whiteboard = () => {
                 }
             }
         }
-    }, [isDrawing]);
+    }, [drawingData, isDrawing, ws]);
 
     return (
         <div>
