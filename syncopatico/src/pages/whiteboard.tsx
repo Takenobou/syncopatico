@@ -1,10 +1,10 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import { useParams } from 'react-router-dom';
 import Toolbar from "../components/Toolbar.tsx";
-
+//again
 // Define a type for the drawing data
 type DrawingData = {
-    type: 'line' | 'circle' | 'rectangle' | 'text';
+    type: 'pan' | 'line' | 'circle' | 'rectangle' | 'text';
     startX: number;
     startY: number;
     endX: number;
@@ -24,11 +24,15 @@ const Whiteboard = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [drawingData, setDrawingData] = useState<DrawingData[]>([]);
-    const [currentTool, setCurrentTool] = useState<'line' | 'circle' | 'rectangle' | 'text'>('line');
+    const [currentTool, setCurrentTool] = useState< 'pan' | 'line' | 'circle' | 'rectangle' | 'text'>('line');
     const [ws, setWs] = useState<WebSocket | null>(null);
     const [currentDrawing, setCurrentDrawing] = useState<DrawingData | null>(null);
     const [textInput, setTextInput] = useState(''); // State for text input
     const { code } = useParams();
+    const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
+    const [viewOffset, setViewOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+    const [zoomLevel, setZoomLevel] = useState(1);
+
     useEffect(() => {
         // Initialize WebSocket connection
         const initializeWebSocket = () => {
@@ -85,72 +89,93 @@ const Whiteboard = () => {
 
     // Function to start drawing
     const startDrawing = (e: React.MouseEvent) => {
-        if (currentTool === 'text') {
-            const { offsetX, offsetY } = e.nativeEvent
-            // Logic for starting text drawing
-            const newDrawing: DrawingData = {
-                type: 'text',
-                startX: offsetX,
-                startY: offsetY,
-                endX: offsetX, // For text, endX and endY may not be used
-                endY: offsetY,
-                text: textInput,
-                fontSize: '16px', // Default font size, can be made dynamic
-                fontFamily: 'Arial', // Default font family, can be made dynamic
-            };
-            setCurrentDrawing(newDrawing);
-            setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
-            setIsDrawing(false); // To stop drawing after text input
+        const { adjustedX, adjustedY } = getAdjustedCoordinates(e);
+        const { offsetX, offsetY } = e.nativeEvent;
+        if (currentTool === 'pan') {
+            setPanStart({ x: offsetX, y: offsetY });
+            e.preventDefault();
         } else {
-            const { offsetX, offsetY } = e.nativeEvent;
-            setIsDrawing(true);
-            const newDrawing: DrawingData = {
-                type: currentTool,
-                startX: offsetX,
-                startY: offsetY,
-                // Initialize endX and endY with the same starting point
-                endX: offsetX,
-                endY: offsetY,
-            };
-            setCurrentDrawing(newDrawing); // Set the current drawing
-            setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
+            if (currentTool === 'text') {
+                const newDrawing: DrawingData = {
+                    type: 'text',
+                    startX: adjustedX,
+                    startY: adjustedY,
+                    endX: adjustedX,
+                    endY: adjustedY,
+                    text: textInput,
+                    fontSize: '16px',
+                    fontFamily: 'Arial',
+                };
+                setCurrentDrawing(newDrawing);
+                setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
+                setIsDrawing(false);
+            } else {
+                setIsDrawing(true);
+                const newDrawing: DrawingData = {
+                    type: currentTool,
+                    startX: adjustedX,
+                    startY: adjustedY,
+                    endX: adjustedX,
+                    endY: adjustedY,
+                };
+                setCurrentDrawing(newDrawing);
+                setDrawingData(prevDrawingData => [...prevDrawingData, newDrawing]);
+            }
         }
-
     };
 
     const draw = (e: React.MouseEvent) => {
-        if (!isDrawing || !currentDrawing) return;
-        const { offsetX, offsetY } = e.nativeEvent;
-        // Update the current drawing directly
-        const updatedDrawing = {
-            ...currentDrawing,
-            endX: offsetX,
-            endY: offsetY,
-        };
-        setCurrentDrawing(updatedDrawing); // Update the current drawing
+        if (currentTool === 'pan' && panStart) {
+            const { offsetX, offsetY } = e.nativeEvent;
+            setViewOffset({
+                x: viewOffset.x + (offsetX - panStart.x),
+                y: viewOffset.y + (offsetY - panStart.y)
+            });
+            setPanStart({ x: offsetX, y: offsetY });
+            e.preventDefault();
+        } else if (isDrawing && currentDrawing) {
+            const { adjustedX, adjustedY } = getAdjustedCoordinates(e);
+            const updatedDrawing = {
+                ...currentDrawing,
+                endX: adjustedX,
+                endY: adjustedY,
+            };
+            setCurrentDrawing(updatedDrawing);
+        }
     };
+
 
 
     // Use sendDrawingData function where appropriate, e.g., in stopDrawing function
-    const stopDrawing = () => {
-        setIsDrawing(false);
+    const stopDrawing = (e: React.MouseEvent) => {
+        if (currentTool === 'pan') {
+            setPanStart(null);
+            e.preventDefault();
+        } else {
+            setIsDrawing(false);
+            if (!currentDrawing) return;
+            const { adjustedX, adjustedY } = getAdjustedCoordinates(e);
+            if (currentTool === 'text' && textInput.trim() !== '') {
+                const textDrawing = {
+                    ...currentDrawing,
+                    text: textInput
+                };
+                sendDrawingData(textDrawing);
+                setTextInput('');
+            } else if (currentDrawing) {
+                const finalDrawing = {
+                    ...currentDrawing,
+                    endX: adjustedX,
+                    endY: adjustedY,
+                };
+                sendDrawingData(finalDrawing);
+                setDrawingData(prevDrawingData => [...prevDrawingData, finalDrawing]);
+            }
 
-        if (!currentDrawing) return;
-
-        if (currentTool === 'text' && textInput.trim() !== '') {
-            const textDrawing = {
-                ...currentDrawing,
-                text: textInput
-            };
-            sendDrawingData(textDrawing);
-            setTextInput(''); // Clear the text input after sending
-        } else if (currentDrawing) {
-            sendDrawingData(currentDrawing); // Send drawing data for other tools
+            setCurrentDrawing(null);
         }
-
-        setDrawingData(prevDrawingData => [...prevDrawingData, currentDrawing]);
-        setCurrentDrawing(null);
     };
+
 
     // sendDrawingData function
     const sendDrawingData = (drawing: DrawingData) => {
@@ -175,9 +200,16 @@ const Whiteboard = () => {
         }
 
         context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+        context.save(); // Save the current context state
+
+        // Apply zoom and pan transformations
+        context.translate(viewOffset.x, viewOffset.y);
+        context.scale(zoomLevel, zoomLevel);
+
 
         // Draw all shapes from the drawingData state
         drawingData.forEach((item) => {
+            drawShape(context, item);
             context.beginPath();
             if (item.type === 'line') {
                 context.moveTo(item.startX, item.startY);
@@ -193,20 +225,52 @@ const Whiteboard = () => {
             }
             context.stroke();
         });
-    }, [drawingData]);
-
-    const renderTextInput = () => {
-        if (currentTool === 'text') {
-            return (
-                <input
-                    type="text"
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    placeholder="Enter text"
-                />
-            );
+        if (isDrawing && currentDrawing) {
+            drawShape(context, currentDrawing);
         }
-        return null;
+        // Reset the transformation after drawing
+        context.resetTransform();
+    }, [drawingData, viewOffset, zoomLevel, isDrawing, currentDrawing]);
+
+    const zoomIn = () => {
+        setZoomLevel(zoomLevel => Math.min(zoomLevel + 0.1, 5)); // Max zoom level 5x
+    };
+
+    const zoomOut = () => {
+        setZoomLevel(zoomLevel => Math.max(zoomLevel - 0.1, 0.1)); // Min zoom level 0.1x
+    };
+
+    const drawShape = (context: CanvasRenderingContext2D, item: DrawingData) => {
+        context.beginPath();
+        switch (item.type) {
+            case 'line':
+                context.moveTo(item.startX, item.startY);
+                context.lineTo(item.endX, item.endY);
+                break;
+            case 'circle': {
+                const radius = Math.sqrt(Math.pow(item.endX - item.startX, 2) + Math.pow(item.endY - item.startY, 2));
+                context.arc(item.startX, item.startY, radius, 0, 2 * Math.PI);
+                break;
+            }
+            case 'rectangle':
+                context.rect(item.startX, item.startY, item.endX - item.startX, item.endY - item.startY);
+                break;
+            case 'text':
+                if (item.text) {
+                    context.font = `${item.fontSize} ${item.fontFamily}`;
+                    context.fillText(item.text, item.startX, item.startY);
+                }
+                break;
+            // Add cases for other shapes as needed
+        }
+        context.stroke();
+    };
+
+    const getAdjustedCoordinates = (e: React.MouseEvent) => {
+        const { offsetX, offsetY } = e.nativeEvent;
+        const adjustedX = (offsetX - viewOffset.x) / zoomLevel;
+        const adjustedY = (offsetY - viewOffset.y) / zoomLevel;
+        return { adjustedX, adjustedY };
     };
 
     // Effect to render the canvas whenever the drawing data changes
@@ -241,17 +305,25 @@ const Whiteboard = () => {
 
     return (
         <div>
-            {renderTextInput()}
+            {/*{renderTextInput()}*/}
             <canvas
+                className="border-2 border-black m-0.5"
                 ref={canvasRef}
-                width={800} // Set appropriate size
-                height={600}
+                width={1900} // Set appropriate size
+                height={700}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
             />
-            <Toolbar setCurrentTool={setCurrentTool} />
+            <Toolbar
+                setCurrentTool={setCurrentTool}
+                isTextToolSelected={currentTool === 'text'}
+                textInput={textInput}
+                setTextInput={setTextInput}
+                zoomIn={zoomIn} // Passing the zoomIn function
+                zoomOut={zoomOut} // Passing the zoomOut function
+            />
         </div>
     );
 };
