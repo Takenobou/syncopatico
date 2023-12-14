@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import { useParams } from 'react-router-dom';
 import Toolbar from "../components/Toolbar.tsx";
-//again
+
 // Define a type for the drawing data
 type DrawingData = {
     type: 'pan' | 'line' | 'circle' | 'rectangle' | 'text';
@@ -12,7 +12,6 @@ type DrawingData = {
     text?: string;
     fontSize?: string;
     fontFamily?: string;
-    // Add other properties as needed (like color, thickness)
 };
 
 type OuterLayer = {
@@ -67,8 +66,6 @@ const Whiteboard = () => {
             // Clean up the WebSocket connection
             ws?.close();
         };
-
-
     }, [code, ws]);
 
     useEffect(() => {
@@ -182,46 +179,77 @@ const Whiteboard = () => {
         }
     };
 
+    const drawDotGrid = (
+        context: CanvasRenderingContext2D,
+        gridSpacing: number,
+        dotSize: number,
+        viewOffset: { x: number, y: number },
+        zoomLevel: number
+    ) => {
+        const width = context.canvas.width;
+        const height = context.canvas.height;
+
+        // Adjust the start and end points based on the viewOffset and zoomLevel
+        const startX = -viewOffset.x / zoomLevel;
+        const startY = -viewOffset.y / zoomLevel;
+        const endX = (width - viewOffset.x) / zoomLevel;
+        const endY = (height - viewOffset.y) / zoomLevel;
+
+        context.fillStyle = '#CCCCCC'; // Set the dot color
+
+        // Adjust the loop to start and end at the right points
+        for (let x = startX - startX % gridSpacing; x < endX; x += gridSpacing) {
+            for (let y = startY - startY % gridSpacing; y < endY; y += gridSpacing) {
+                context.beginPath();
+                context.arc(x, y, dotSize, 0, Math.PI * 2, true);
+                context.fill();
+            }
+        }
+    };
+
     // Function to render the drawing on the canvas
     const renderCanvas = useCallback(() => {
-        const canvas = canvasRef.current;
-        const context = canvas?.getContext('2d');
-        if (!context) {
-            console.error('Canvas context not available.');
-            return;
-        }
-
-        context.clearRect(0, 0, context.canvas.width, context.canvas.height);
-        context.save(); // Save the current context state
-
-        // Apply zoom and pan transformations
-        context.translate(viewOffset.x, viewOffset.y);
-        context.scale(zoomLevel, zoomLevel);
-
-
-        // Draw all shapes from the drawingData state
-        drawingData.forEach((item) => {
-            drawShape(context, item);
-            context.beginPath();
-            if (item.type === 'line') {
-                context.moveTo(item.startX, item.startY);
-                context.lineTo(item.endX, item.endY);
-            } else if (item.type === 'circle') {
-                const radius = Math.sqrt(Math.pow(item.endX - item.startX, 2) + Math.pow(item.endY - item.startY, 2));
-                context.arc(item.startX, item.startY, radius, 0, 2 * Math.PI);
-            } else if (item.type === 'rectangle') {
-                context.rect(item.startX, item.startY, item.endX - item.startX, item.endY - item.startY);
-            } else if (item.type === 'text' && item.text) {
-                context.font = `${item.fontSize} ${item.fontFamily}`;
-                context.fillText(item.text, item.startX, item.startY);
+        requestAnimationFrame(() => {
+            const canvas = canvasRef.current;
+            const context = canvas?.getContext('2d');
+            if (!context) {
+                console.error('Canvas context not available.');
+                return;
             }
-            context.stroke();
+
+            context.clearRect(0, 0, context.canvas.width, context.canvas.height);
+            context.save(); // Save the current context state
+
+            // Apply zoom and pan transformations
+            context.translate(viewOffset.x, viewOffset.y);
+            context.scale(zoomLevel, zoomLevel);
+
+            drawDotGrid(context, 50 * zoomLevel, 2, viewOffset, zoomLevel);
+
+            // Draw all shapes from the drawingData state
+            drawingData.forEach((item) => {
+                drawShape(context, item);
+                context.beginPath();
+                if (item.type === 'line') {
+                    context.moveTo(item.startX, item.startY);
+                    context.lineTo(item.endX, item.endY);
+                } else if (item.type === 'circle') {
+                    const radius = Math.sqrt(Math.pow(item.endX - item.startX, 2) + Math.pow(item.endY - item.startY, 2));
+                    context.arc(item.startX, item.startY, radius, 0, 2 * Math.PI);
+                } else if (item.type === 'rectangle') {
+                    context.rect(item.startX, item.startY, item.endX - item.startX, item.endY - item.startY);
+                } else if (item.type === 'text' && item.text) {
+                    context.font = `${item.fontSize} ${item.fontFamily}`;
+                    context.fillText(item.text, item.startX, item.startY);
+                }
+                context.stroke();
+            });
+            if (isDrawing && currentDrawing) {
+                drawShape(context, currentDrawing);
+            }
+            // Reset the transformation after drawing
+            context.resetTransform();
         });
-        if (isDrawing && currentDrawing) {
-            drawShape(context, currentDrawing);
-        }
-        // Reset the transformation after drawing
-        context.resetTransform();
     }, [drawingData, viewOffset, zoomLevel, isDrawing, currentDrawing]);
 
     const zoomIn = () => {
@@ -313,7 +341,7 @@ const Whiteboard = () => {
         };
     }, []);
 
-
+    
     return (
         <div className="flex flex-col h-screen">
             <canvas
