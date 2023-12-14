@@ -10,9 +10,7 @@ type Props = {
     zoomOut: () => void;
 };
 
-
 const Toolbar: React.FC<Props> = ({ setCurrentTool, isTextToolSelected, textInput, setTextInput, zoomIn, zoomOut }) => {
-    // ... existing code
 
     const renderTextInput = () => {
         if (!isTextToolSelected) return null;
@@ -30,12 +28,11 @@ const Toolbar: React.FC<Props> = ({ setCurrentTool, isTextToolSelected, textInpu
 
     return (
         <div className="fixed top-5 left-5 z-10 flex justify-between items-center bg-white p-2 rounded-md shadow-sm border border-gray-200 space-x-2">
-            {/* Your buttons go here */}
             <button
                 className="flex items-center space-x-1 text-gray-500 hover:text-blue-500 focus:outline-none"
                 onClick={() => setCurrentTool('pan')}
             >
-                <FiMove className="h-4 w-4" /> {/* Replace FiMove with the icon of your choice */}
+                <FiMove className="h-4 w-4" />
                 <span className="text-xs">Pan</span>
             </button>
             <button
@@ -85,7 +82,6 @@ const Toolbar: React.FC<Props> = ({ setCurrentTool, isTextToolSelected, textInpu
                 <FiMinus className="h-4 w-4" />
                 <span className="text-xs">Zoom Out</span>
             </button>
-            {/* Add more buttons or options as needed */}
         </div>
     );
 };

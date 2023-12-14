@@ -9,7 +9,6 @@ const Landing: React.FC = () => {
         return Math.floor(1000 + Math.random() * 9000);
     };
     const isValidCode = (code: string): boolean => {
-        // Add your validation logic here (if needed)
         return /^[0-9]{4}$/.test(code);
     };
 
@@ -44,7 +43,6 @@ const Landing: React.FC = () => {
         };
     }, []); // Empty dependency array ensures that this effect runs only once
 
-
     const createNewWhiteboard = () => {
         const code = generateRandomCode();
         navigate(`/whiteboard/${code}`);
@@ -68,73 +66,44 @@ const Landing: React.FC = () => {
         setShowJoinInput(false);
         setJoinCode('');
     };
-    // const createNewWhiteboard = () => {
-    //     const code = generateRandomCode();
-    //     navigate(`/whiteboard/${code}`);
-    // };
-    //
-    // const handleJoinSubmit = () => {
-    //     console.log('Handle Join Submit called');
-    //
-    //     if (isValidCode(joinCode)) {
-    //         console.log('Is Valid Code:', true);
-    //         console.log('Navigating to whiteboard:', `/whiteboard/${joinCode}`);
-    //         navigate(`/whiteboard/${joinCode}`);
-    //     } else {
-    //         console.log('Invalid code. Please try again.');
-    //     }
-    // };
-    //
-    //
-    //
-    // const handleJoinClick = () => {
-    //     setShowJoinInput(true);
-    // };
-    //
-    // const handleGoBack = () => {
-    //     setShowJoinInput(false);
-    //     setJoinCode('');
-    // };
-
-
 
     return (
-        <div className="flex justify-center items-center h-screen bg-gray-100">
-            <div className="text-center p-8 bg-white shadow-lg rounded-xl transition-all w-1/4">
-                <h1 className="text-5xl font-extrabold mb-10 text-gray-900">Syncopatico</h1>
+        <div className="flex justify-center items-center h-screen bg-gray-50">
+            <div className="text-center p-6 bg-white shadow rounded-xl transition-all w-full max-w-md">
+                <h1 className="text-4xl font-bold mb-6 text-gray-900">Syncopatico</h1>
                 {!showJoinInput ? (
                     <div className="space-y-4">
                         <button
-                            className="bg-gray-200 hover:bg-green-300 text-gray-800 font-semibold py-2 px-6 rounded-lg shadow transition duration-300 w-full"
+                            className="bg-blue-500 hover:bg-blue-400 text-white font-semibold py-2 px-4 rounded-full shadow transition duration-300 w-full"
                             onClick={createNewWhiteboard}
                         >
-                            Create New
+                            Create New Whiteboard
                         </button>
                         <button
-                            className="bg-gray-200 hover:bg-blue-300 text-gray-800 font-semibold py-2 px-6 rounded-lg shadow transition duration-300 w-full"
+                            className="bg-green-500 hover:bg-green-400 text-white font-semibold py-2 px-4 rounded-full shadow transition duration-300 w-full"
                             onClick={handleJoinClick}
                         >
-                            Join
+                            Join Whiteboard
                         </button>
                     </div>
                 ) : (
                     <div className="space-y-4">
                         <input
                             type="text"
-                            className="border-2 border-gray-300 bg-white rounded-lg py-2 px-4 text-gray-800 shadow-inner focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent transition duration-300 w-full"
+                            className="border border-gray-300 bg-white rounded-full py-2 px-4 text-gray-800 shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-200 transition duration-300 w-full"
                             placeholder="Enter Code"
                             value={joinCode}
                             onChange={(e) => setJoinCode(e.target.value)}
                             autoFocus
                         />
                         <button
-                            className="bg-gray-200 hover:bg-blue-300 text-gray-800 font-semibold py-2 rounded-lg shadow transition duration-300 w-full"
+                            className="bg-blue-500 hover:bg-blue-400 text-white font-semibold py-2 rounded-full shadow transition duration-300 w-full"
                             onClick={handleJoinSubmit}
                         >
                             Join
                         </button>
                         <button
-                            className="bg-gray-200 hover:bg-red-300 text-gray-800 font-semibold py-2 px-6 rounded-lg transition duration-300 w-full"
+                            className="bg-red-500 hover:bg-red-400 text-white font-semibold py-2 px-4 rounded-full transition duration-300 w-full"
                             onClick={handleGoBack}
                         >
                             Go Back

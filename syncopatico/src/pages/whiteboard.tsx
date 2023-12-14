@@ -66,11 +66,10 @@ const Whiteboard = () => {
         return () => {
             // Clean up the WebSocket connection
             ws?.close();
-
         };
 
 
-    }, [code]);
+    }, [code, ws]);
 
     useEffect(() => {
         const handleBeforeUnload = () => {
@@ -83,9 +82,6 @@ const Whiteboard = () => {
             window.removeEventListener('beforeunload', handleBeforeUnload);
         };
     }, [ws]);
-
-
-
 
     // Function to start drawing
     const startDrawing = (e: React.MouseEvent) => {
@@ -144,8 +140,6 @@ const Whiteboard = () => {
         }
     };
 
-
-
     // Use sendDrawingData function where appropriate, e.g., in stopDrawing function
     const stopDrawing = (e: React.MouseEvent) => {
         if (currentTool === 'pan') {
@@ -176,7 +170,6 @@ const Whiteboard = () => {
         }
     };
 
-
     // sendDrawingData function
     const sendDrawingData = (drawing: DrawingData) => {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -188,7 +181,6 @@ const Whiteboard = () => {
             ws.send(JSON.stringify(message));
         }
     };
-
 
     // Function to render the drawing on the canvas
     const renderCanvas = useCallback(() => {
@@ -261,7 +253,6 @@ const Whiteboard = () => {
                     context.fillText(item.text, item.startX, item.startY);
                 }
                 break;
-            // Add cases for other shapes as needed
         }
         context.stroke();
     };
@@ -303,26 +294,47 @@ const Whiteboard = () => {
         }
     }, [drawingData, isDrawing, ws]);
 
+    const adjustCanvasSize = () => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            canvas.width = viewportWidth;
+            canvas.height = viewportHeight;
+        }
+    };
+
+    useEffect(() => {
+        adjustCanvasSize();
+        window.addEventListener('resize', adjustCanvasSize);
+
+        return () => {
+            window.removeEventListener('resize', adjustCanvasSize);
+        };
+    }, []);
+
+
     return (
-        <div>
+        <div className="flex flex-col h-screen">
             <canvas
-                className="border-2 border-black m-0.5"
+                className="flex-grow"
                 ref={canvasRef}
-                width={1900} // Set appropriate size
-                height={700}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
             />
-            <Toolbar
-                setCurrentTool={setCurrentTool}
-                isTextToolSelected={currentTool === 'text'}
-                textInput={textInput}
-                setTextInput={setTextInput}
-                zoomIn={zoomIn} // Passing the zoomIn function
-                zoomOut={zoomOut} // Passing the zoomOut function
-            />
+
+            <div className="flex justify-center items-center space-x-4 p-4">
+                <Toolbar
+                    setCurrentTool={setCurrentTool}
+                    isTextToolSelected={currentTool === 'text'}
+                    textInput={textInput}
+                    setTextInput={setTextInput}
+                    zoomIn={zoomIn}
+                    zoomOut={zoomOut}
+                />
+            </div>
         </div>
     );
 };
