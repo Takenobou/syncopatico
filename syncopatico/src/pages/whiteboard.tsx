@@ -90,7 +90,7 @@ const Whiteboard = () => {
             // Clean up the WebSocket connection
             ws?.close();
         };
-    }, [code, ws]);
+    }, [code]);
 
     useEffect(() => {
         const handleBeforeUnload = () => {
@@ -371,7 +371,7 @@ const Whiteboard = () => {
             {/* Alerts */}
             {showConnectedAlert && (
                 <div className="absolute top-0 right-0 m-4 p-4 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-green-900 dark:text-green-400 transition transform ease-out duration-300">
-                    <label>You are connected. Code: {code}</label>
+                    <label>You are connected. Join code: {code}</label>
                 </div>
             )}
             {connectionStatus === 'disconnected' && (
