@@ -31,14 +31,35 @@ const Whiteboard = () => {
     const [panStart, setPanStart] = useState<{ x: number; y: number } | null>(null);
     const [viewOffset, setViewOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const [zoomLevel, setZoomLevel] = useState(1);
+    const [connectionStatus, setConnectionStatus] = useState('disconnected'); // 'connected', 'disconnected', or 'error'
+    const [showConnectedAlert, setShowConnectedAlert] = useState(false);
 
     useEffect(() => {
         // Initialize WebSocket connection
         const initializeWebSocket = () => {
             const ws = new WebSocket(`ws://localhost:8080/ws/${code}`);
-            ws.onopen = () => console.log("WebSocket opened");
-            ws.onclose = () => console.log("WebSocket closed");
-            ws.onerror = (error) => console.error("WebSocket error:", error);
+            let alertTimeout: number | undefined;
+
+            ws.onopen = () => {
+                console.log("WebSocket opened");
+                setConnectionStatus('connected');
+                setShowConnectedAlert(true); // Show the connected alert
+
+                // Set a timeout to hide the alert after 10 seconds
+                alertTimeout = setTimeout(() => {
+                    setShowConnectedAlert(false);
+                }, 10000);
+            };
+
+            ws.onclose = () => {
+                console.log("WebSocket closed");
+                setConnectionStatus('disconnected'); // Update status to disconnected
+            };
+
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+                setConnectionStatus('error'); // Update status to error on WebSocket error
+            };
             ws.onmessage = (event) => {
                 console.log("WebSocket message received:", event.data);
 
@@ -58,6 +79,9 @@ const Whiteboard = () => {
                 }
             };
             setWs(ws);
+            return () => {
+                clearTimeout(alertTimeout);
+            };
         };
 
         initializeWebSocket();
@@ -341,9 +365,29 @@ const Whiteboard = () => {
         };
     }, []);
 
-    
+
     return (
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-screen relative">
+            {/* Alerts */}
+            {showConnectedAlert && (
+                <div className="absolute top-0 right-0 m-4 p-4 text-sm text-green-800 rounded-lg bg-green-50 dark:bg-green-900 dark:text-green-400 transition transform ease-out duration-300">
+                    <label>You are connected. Code: {code}</label>
+                </div>
+            )}
+            {connectionStatus === 'disconnected' && (
+                <div
+                    className="absolute top-0 right-0 m-4 p-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-red-900 dark:text-red-400 transition transform ease-out duration-300">
+                    <label>You have been disconnected.</label>
+                </div>
+            )}
+            {connectionStatus === 'error' && (
+                <div
+                    className="absolute top-0 right-0 m-4 p-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 dark:bg-yellow-900 dark:text-yellow-300 transition transform ease-out duration-300">
+                    <label>Connection error occurred.</label>
+                </div>
+            )}
+
+            {/* Canvas */}
             <canvas
                 className="flex-grow"
                 ref={canvasRef}
@@ -353,6 +397,7 @@ const Whiteboard = () => {
                 onMouseLeave={stopDrawing}
             />
 
+            {/* Toolbar */}
             <div className="flex justify-center items-center space-x-4 p-4">
                 <Toolbar
                     setCurrentTool={setCurrentTool}
