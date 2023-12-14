@@ -305,7 +305,6 @@ const Whiteboard = () => {
 
     return (
         <div>
-            {/*{renderTextInput()}*/}
             <canvas
                 className="border-2 border-black m-0.5"
                 ref={canvasRef}

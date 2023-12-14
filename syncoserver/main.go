@@ -44,12 +44,12 @@ type Message struct {
 }
 
 type DrawingData struct {
-	Type   string `json:"type"`
-	StartX int    `json:"startX"`
-	StartY int    `json:"startY"`
-	EndX   int    `json:"endX"`
-	EndY   int    `json:"endY"`
-	Text   string `json:"text,omitempty"`
+	Type   string  `json:"type"`
+	StartX float64 `json:"startX"`
+	StartY float64 `json:"startY"`
+	EndX   float64 `json:"endX"`
+	EndY   float64 `json:"endY"`
+	Text   string  `json:"text,omitempty"`
 	// Additional properties for rectangle and circle
 	Radius int `json:"radius,omitempty"`
 	Width  int `json:"width,omitempty"`
