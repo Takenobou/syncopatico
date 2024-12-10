@@ -93,7 +93,7 @@ func handleConnections(w http.ResponseWriter, r *http.Request, code string) {
 		err := ws.WriteJSON(message)
 		if err != nil {
 			log.Printf("Error sending drawing data: %v", err)
-			return // Handle the error appropriately
+			return
 		}
 	}
 	drawingMutex.Unlock()
@@ -188,7 +188,7 @@ func handleMessages() {
 				err := client.WriteJSON(msg)
 				if err != nil {
 					return
-				} // You may want to handle errors here
+				} 
 			}
 		}
 		wbData.Mutex.Unlock()
@@ -228,7 +228,7 @@ func main() {
 			http.Error(w, "Invalid URL", http.StatusBadRequest)
 			return
 		}
-		code := parts[2] // Assuming URL format is /ws/{code}
+		code := parts[2]
 		handleConnections(w, r, code)
 	})
 
